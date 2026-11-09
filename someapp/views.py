@@ -121,5 +121,41 @@ class ReviewViewSet(viewsets.ModelViewSet):
 def index_view(request):
     return render(request, 'someapp/index.html')
 
+def login_view(request):
+    return render(request, 'someapp/login.html')
+
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+
+def logout_view(request):
+    logout(request)
+    return redirect('/login/')
+
+def register_view(request):
+    return render(request, 'someapp/register.html')
+
 def configurator_view(request):
     return render(request, 'someapp/configurator.html')
+
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def web_login(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+    
+    from django.contrib.auth import authenticate
+    user = authenticate(username=email, password=password)
+    
+    if user:
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user_id': user.id
+        })
+    return Response({'error': 'Неверный email или пароль'}, status=401)

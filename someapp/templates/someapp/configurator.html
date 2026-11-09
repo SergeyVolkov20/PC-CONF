@@ -6,14 +6,12 @@
 <h2 class="fw-bold mb-4" style="font-size: 1.8rem;">Конфигуратор ПК</h2>
 
 <div class="row">
-    <!-- Левая колонка: Список компонентов -->
     <div class="col-lg-8">
         <div class="custom-card">
             <div class="p-3 border-bottom bg-light rounded-top">
                 <h5 class="m-0 fw-bold">Обязательные комплектующие</h5>
             </div>
             
-            <!-- Процессор -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-cpu"></i></div>
                 <div class="component-info">
@@ -27,7 +25,6 @@
                 </div>
             </div>
 
-            <!-- Материнская плата -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-motherboard"></i></div>
                 <div class="component-info">
@@ -41,7 +38,6 @@
                 </div>
             </div>
 
-            <!-- ОЗУ -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-memory"></i></div>
                 <div class="component-info">
@@ -55,7 +51,6 @@
                 </div>
             </div>
 
-            <!-- Видеокарта -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-gpu-card"></i></div>
                 <div class="component-info">
@@ -69,7 +64,6 @@
                 </div>
             </div>
 
-            <!-- БП -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-plug"></i></div>
                 <div class="component-info">
@@ -83,7 +77,6 @@
                 </div>
             </div>
 
-            <!-- Корпус -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-pc-display"></i></div>
                 <div class="component-info">
@@ -97,7 +90,6 @@
                 </div>
             </div>
 
-            <!-- Накопители -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-hdd"></i></div>
                 <div class="component-info">
@@ -111,7 +103,6 @@
                 </div>
             </div>
 
-            <!-- Охлаждение -->
             <div class="component-row">
                 <div class="component-icon"><i class="bi bi-fan"></i></div>
                 <div class="component-info">
@@ -125,20 +116,17 @@
                 </div>
             </div>
 
-            <!-- Кнопка -->
             <div class="p-4 bg-light rounded-bottom">
                 <button id="btn-check" class="btn btn-brand w-100 py-3">Проверить конфигурацию</button>
             </div>
         </div>
     </div>
 
-    <!-- Правая колонка: Итог и Ошибки -->
     <div class="col-lg-4">
         <div class="custom-card p-4">
             <h5 class="fw-bold mb-4">Ваша сборка</h5>
             
             <div id="result-box" class="alert alert-info" style="display: none;">
-                <!-- Результат проверки -->
             </div>
 
             <div id="total-price" class="d-flex justify-content-between mb-3 border-bottom pb-2">
@@ -160,76 +148,98 @@
 
 {% block scripts %}
 <script>
-    // 1. Загрузка товаров в списки (остается без изменений)
+    const token = localStorage.getItem('access_token');
+
+    if (!token) {
+        window.location.href = '/login/';
+    }
+
     async function loadProducts(categoryId, selectId) {
         try {
             const response = await fetch(`/api/products/?category=${categoryId}`);
             const products = await response.json();
             const select = document.getElementById(selectId);
-            
             products.forEach(product => {
                 const option = document.createElement('option');
                 option.value = product.id;
                 option.text = `${product.name} (${product.price} ₽)`;
                 select.appendChild(option);
             });
-        } catch (error) {
-            console.error('Ошибка загрузки:', error);
-        }
+        } catch (error) { console.error('Ошибка загрузки:', error); }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        loadProducts(1, 'select-cpu');         
-        loadProducts(2, 'select-motherboard'); 
-        loadProducts(3, 'select-ram');         
-        loadProducts(4, 'select-gpu');         
-        loadProducts(5, 'select-psu');         
-        loadProducts(6, 'select-case');        
+        loadProducts(1, 'select-cpu'); loadProducts(2, 'select-motherboard');
+        loadProducts(3, 'select-ram'); loadProducts(4, 'select-gpu');
+        loadProducts(5, 'select-psu'); loadProducts(6, 'select-case');
     });
 
-    // 2. РЕАЛЬНАЯ Логика проверки через API
     document.getElementById('btn-check').addEventListener('click', async () => {
         const resultBox = document.getElementById('result-box');
         resultBox.style.display = 'block';
-        resultBox.className = 'alert alert-info';
-        resultBox.innerHTML = 'Проверка...';
-
-        // Собираем выбранные ID (только те, что выбраны)
-        const items = [];
-        if (document.getElementById('select-cpu').value) items.push(parseInt(document.getElementById('select-cpu').value));
-        if (document.getElementById('select-motherboard').value) items.push(parseInt(document.getElementById('select-motherboard').value));
-        if (document.getElementById('select-ram').value) items.push(parseInt(document.getElementById('select-ram').value));
         
-        if (items.length < 2) {
+        const selectedItems = [];
+        if (document.getElementById('select-cpu').value) selectedItems.push(document.getElementById('select-cpu').value);
+        if (document.getElementById('select-motherboard').value) selectedItems.push(document.getElementById('select-motherboard').value);
+        if (document.getElementById('select-ram').value) selectedItems.push(document.getElementById('select-ram').value);
+        
+        if (selectedItems.length < 2) {
             resultBox.className = 'alert alert-warning';
             resultBox.innerHTML = 'Выберите хотя бы два компонента для проверки.';
             return;
         }
 
+        resultBox.className = 'alert alert-info';
+        resultBox.innerHTML = 'Идет проверка...';
+
         try {
-            const response = await fetch(`/api/builds/1/compatibility/`);
+            const buildResponse = await fetch('/api/builds/', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name: "Проверка " + new Date().toLocaleTimeString() })
+            });
             
-            if (!response.ok) {
-                throw new Error('Ошибка сервера. Возможно, сборка №1 не существует.');
+            if (buildResponse.status === 401) {
+                localStorage.removeItem('access_token');
+                window.location.href = '/login/';
+                return;
             }
 
-            const data = await response.json();
-            
-            if (data.compatible) {
+            const buildData = await buildResponse.json();
+            const newBuildId = buildData.id;
+
+            for (const itemId of selectedItems) {
+                await fetch(`/api/builds/${newBuildId}/add_item/`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ product_id: parseInt(itemId) })
+                });
+            }
+
+            const compatResponse = await fetch(`/api/builds/${newBuildId}/compatibility/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const compatData = await compatResponse.json();
+
+            if (compatData.compatible) {
                 resultBox.className = 'alert alert-success';
                 resultBox.innerHTML = '<strong>Все отлично!</strong><br>Комплектующие совместимы.';
             } else {
                 resultBox.className = 'alert alert-danger';
                 let errorsHtml = '<strong>Ошибка совместимости!</strong><ul class="mb-0 mt-2">';
-                data.errors.forEach(err => {
-                    errorsHtml += `<li>${err}</li>`;
-                });
+                compatData.errors.forEach(err => { errorsHtml += `<li>${err}</li>`; });
                 errorsHtml += '</ul>';
                 resultBox.innerHTML = errorsHtml;
             }
         } catch (error) {
             resultBox.className = 'alert alert-danger';
-            resultBox.innerHTML = `Ошибка: ${error.message}`;
+            resultBox.innerHTML = `<strong>Ошибка:</strong> ${error.message}`;
         }
     });
 </script>
