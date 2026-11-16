@@ -148,30 +148,65 @@
 
 {% block scripts %}
 <script>
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-        window.location.href = '/login/';
-    }
-
-    async function loadProducts(categoryId, selectId) {
+    async function loadProductsBySlug(categorySlug, selectId) {
         try {
-            const response = await fetch(`/api/products/?category=${categoryId}`);
+            const catResponse = await fetch('/api/categories/');
+            const categories = await catResponse.json();
+            const category = categories.find(c => c.slug === categorySlug);
+            
+            if (!category) {
+                console.error(`Категория ${categorySlug} не найдена`);
+                return;
+            }
+
+            const response = await fetch(`/api/products/?category=${category.id}`);
             const products = await response.json();
             const select = document.getElementById(selectId);
+            
+            select.innerHTML = '<option value="">Выберите...</option>';
+
             products.forEach(product => {
                 const option = document.createElement('option');
                 option.value = product.id;
+                option.dataset.tdp = product.tdp; 
+                option.dataset.price = product.price;
                 option.text = `${product.name} (${product.price} ₽)`;
                 select.appendChild(option);
             });
         } catch (error) { console.error('Ошибка загрузки:', error); }
     }
 
+    function calculateTotals() {
+        let totalPrice = 0;
+        let totalTdp = 0;
+        const selects = ['select-cpu', 'select-motherboard', 'select-ram', 'select-gpu', 'select-psu', 'select-case', 'select-storage', 'select-cooling'];
+        
+        selects.forEach(id => {
+            const select = document.getElementById(id);
+            if (select && select.value) {
+                const selectedOption = select.options[select.selectedIndex];
+                totalPrice += parseFloat(selectedOption.dataset.price || 0);
+                totalTdp += parseInt(selectedOption.dataset.tdp || 0);
+            }
+        });
+
+        document.getElementById('price-value').textContent = totalPrice.toFixed(2) + ' ₽';
+        document.getElementById('tdp-value').textContent = totalTdp + ' Вт';
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
-        loadProducts(1, 'select-cpu'); loadProducts(2, 'select-motherboard');
-        loadProducts(3, 'select-ram'); loadProducts(4, 'select-gpu');
-        loadProducts(5, 'select-psu'); loadProducts(6, 'select-case');
+        loadProductsBySlug('cpu', 'select-cpu'); 
+        loadProductsBySlug('motherboard', 'select-motherboard');
+        loadProductsBySlug('ram', 'select-ram'); 
+        loadProductsBySlug('gpu', 'select-gpu');
+        loadProductsBySlug('psu', 'select-psu'); 
+        loadProductsBySlug('case', 'select-case');
+        loadProductsBySlug('storage', 'select-storage'); 
+        loadProductsBySlug('cooling', 'select-cooling');
+
+        document.querySelectorAll('select').forEach(select => {
+            select.addEventListener('change', calculateTotals);
+        });
     });
 
     document.getElementById('btn-check').addEventListener('click', async () => {
@@ -179,10 +214,12 @@
         resultBox.style.display = 'block';
         
         const selectedItems = [];
-        if (document.getElementById('select-cpu').value) selectedItems.push(document.getElementById('select-cpu').value);
-        if (document.getElementById('select-motherboard').value) selectedItems.push(document.getElementById('select-motherboard').value);
-        if (document.getElementById('select-ram').value) selectedItems.push(document.getElementById('select-ram').value);
-        
+        const selects = ['select-cpu', 'select-motherboard', 'select-ram', 'select-gpu', 'select-psu', 'select-case', 'select-storage', 'select-cooling'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.value) selectedItems.push(el.value);
+        });
+
         if (selectedItems.length < 2) {
             resultBox.className = 'alert alert-warning';
             resultBox.innerHTML = 'Выберите хотя бы два компонента для проверки.';
@@ -195,36 +232,23 @@
         try {
             const buildResponse = await fetch('/api/builds/', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: "Проверка " + new Date().toLocaleTimeString() })
             });
             
-            if (buildResponse.status === 401) {
-                localStorage.removeItem('access_token');
-                window.location.href = '/login/';
-                return;
-            }
-
+            if (!buildResponse.ok) throw new Error('Ошибка создания сборки');
             const buildData = await buildResponse.json();
             const newBuildId = buildData.id;
 
             for (const itemId of selectedItems) {
                 await fetch(`/api/builds/${newBuildId}/add_item/`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ product_id: parseInt(itemId) })
                 });
             }
 
-            const compatResponse = await fetch(`/api/builds/${newBuildId}/compatibility/`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const compatResponse = await fetch(`/api/builds/${newBuildId}/compatibility/`);
             const compatData = await compatResponse.json();
 
             if (compatData.compatible) {

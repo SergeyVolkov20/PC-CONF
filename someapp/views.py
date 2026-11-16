@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions, status, generics
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework_simplejwt.views import TokenObtainPairView
-from django.shortcuts import render
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.shortcuts import render, redirect
+from django.contrib.auth import logout, authenticate
 
 from .models import (
     User, Category, Product, Build, BuildItem, Order, Review
@@ -12,9 +14,8 @@ from .serializers import (
     ProductListSerializer, ProductDetailSerializer, ProductCreateSerializer,
     BuildSerializer, BuildItemSerializer, OrderSerializer, ReviewSerializer
 )
-from .permissions import IsAdminOrReadOnly, IsOwnerOrReadOnly
+from .permissions import IsAdminOrReadOnly
 from .services import CompatibilityChecker, recalculate_build
-
 
 
 class RegisterView(generics.CreateAPIView):
@@ -29,8 +30,6 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
-
-
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -54,17 +53,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         return ProductCreateSerializer
 
 
-
-
 class BuildViewSet(viewsets.ModelViewSet):
     serializer_class = BuildSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = [] 
 
     def get_queryset(self):
-        return Build.objects.filter(user=self.request.user).prefetch_related('items__product')
+        return Build.objects.all().prefetch_related('items__product')
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save(user=None)
 
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):
@@ -95,7 +96,6 @@ class BuildViewSet(viewsets.ModelViewSet):
         return Response(checker.check_all())
 
 
-
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -116,31 +116,26 @@ class ReviewViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-
-
 def index_view(request):
     return render(request, 'someapp/index.html')
+
 
 def login_view(request):
     return render(request, 'someapp/login.html')
 
-from django.contrib.auth import logout
-from django.shortcuts import redirect
 
 def logout_view(request):
     logout(request)
     return redirect('/login/')
 
+
 def register_view(request):
     return render(request, 'someapp/register.html')
+
 
 def configurator_view(request):
     return render(request, 'someapp/configurator.html')
 
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -148,7 +143,6 @@ def web_login(request):
     email = request.data.get('email')
     password = request.data.get('password')
     
-    from django.contrib.auth import authenticate
     user = authenticate(username=email, password=password)
     
     if user:

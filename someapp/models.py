@@ -104,7 +104,8 @@ class Specification(models.Model):
 class Build(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name='builds', verbose_name='Пользователь'
+        related_name='builds', verbose_name='Пользователь',
+        null=True, blank=True
     )
     name = models.CharField(max_length=100, default='Моя сборка', verbose_name='Название')
     total_price = models.DecimalField(
@@ -122,8 +123,8 @@ class Build(models.Model):
         verbose_name_plural = 'Сборки'
 
     def __str__(self):
-        return f'{self.name} ({self.user.email})'
-
+        email = self.user.email if self.user else 'Гость'
+        return f'{self.name} ({email})'
 
 class BuildItem(models.Model):
     build = models.ForeignKey(
@@ -158,7 +159,8 @@ class Order(models.Model):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.RESTRICT,
-        related_name='orders', verbose_name='Пользователь'
+        related_name='orders', verbose_name='Пользователь',
+        null=True, blank=True
     )
     status = models.CharField(
         max_length=30, choices=STATUS_CHOICES,
@@ -180,7 +182,6 @@ class Order(models.Model):
 
     def __str__(self):
         return f'Заказ #{self.id} ({self.get_status_display()})'
-
 
 class OrderItem(models.Model):
     order = models.ForeignKey(

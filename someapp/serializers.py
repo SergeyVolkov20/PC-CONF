@@ -45,11 +45,19 @@ class SpecificationSerializer(serializers.ModelSerializer):
 class ProductListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     specifications = SpecificationSerializer(many=True, read_only=True)
+    tdp = serializers.SerializerMethodField() 
 
     class Meta:
         model = Product
         fields = ['id', 'name', 'brand', 'price', 'image', 'stock',
-                  'category_name', 'specifications']
+                  'category_name', 'specifications', 'tdp'] 
+
+    def get_tdp(self, obj):
+      
+        spec = obj.specifications.filter(spec_key='tdp').first()
+        if spec:
+            return int(spec.spec_value)
+        return 0
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
